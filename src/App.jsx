@@ -796,7 +796,9 @@ useEffect(()=>{
   const pending = unpaidCount * entryFee;
   const potentialPool = participantCount * entryFee;
   const totalPool = collected;
-  const totalPrizes = (state.prizes.first || 0) + (state.prizes.second || 0) + (state.prizes.third || 0);
+  const prizes = normalizePrizes(state.prizes);
+  const prizePlaces = prizes.length;
+  const totalPrizes = prizes.reduce((sum,p)=>sum + (Number(p.amount)||0), 0);
   const phase=currentPhase(state.teams);
   const lastUpdatedLabel=state.lastUpdated?new Date(state.lastUpdated).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"Sin actualizaciones";
   const hasAssignedTeams = state.participants.some(p => p.b1 || p.b2 || p.b3);
@@ -907,7 +909,58 @@ const resetPayments=()=>{
     touchUpdated(n);
   });
 };
-  
+  const prizePresetForPlaces=(places)=>{
+  const presets = {
+    1: [1],
+    2: [0.65, 0.35],
+    3: [0.55, 0.30, 0.15],
+    4: [0.50, 0.25, 0.15, 0.10],
+    5: [0.45, 0.25, 0.15, 0.10, 0.05]
+  };
+
+  return presets[places] || presets[3];
+};
+
+const suggestPrizes=(places, pool)=>{
+  const weights = prizePresetForPlaces(places);
+  const rounded = weights.map(w => Math.floor((pool * w) / 50) * 50);
+
+  const diff = pool - rounded.reduce((sum, v) => sum + v, 0);
+  if(rounded.length > 0) rounded[0] += diff;
+
+  return rounded.map((amount, idx)=>({
+    place: idx + 1,
+    amount
+  }));
+};
+
+const normalizePrizes=(prizes)=>{
+  if(Array.isArray(prizes)) return prizes;
+
+  return [
+    {place: 1, amount: prizes?.first || 0},
+    {place: 2, amount: prizes?.second || 0},
+    {place: 3, amount: prizes?.third || 0}
+  ];
+};
+
+const updatePrizeAmount=(place, amount)=>{
+  update(n=>{
+    const current = normalizePrizes(n.prizes);
+    n.prizes = current.map(p=>p.place===place ? {...p, amount:Number(amount)||0} : p);
+    touchUpdated(n);
+  });
+};
+
+const autoSuggestPrizes=(places)=>{
+  update(n=>{
+    const fee = Number(n.entryFee ?? DEFAULT_ENTRY_FEE);
+    const paid = n.participants.filter(p=>p.paid).length;
+    const pool = paid * fee;
+    n.prizes = suggestPrizes(places, pool);
+    touchUpdated(n);
+  });
+};
   const actualizarResultados=async()=>{
     setLoadingResults(true);
   
@@ -1488,31 +1541,93 @@ const resetPayments=()=>{
         )}
         {tab==="premios" && (
           <section className="space-y-4">
-            <div className="bg-white rounded-xl ring-1 ring-stone-200/70 p-4 sm:p-5 space-y-3">
-              {[["first","1° lugar"],["second","2° lugar"],["third","3° lugar"]].map(([k,l])=>(
-                <div key={k} className="flex items-center justify-between gap-3">
-                  <label className="text-sm text-stone-600">{l}</label>
-                  {admin
-                    ? <input type="number" value={state.prizes[k]} onChange={e=>update(n=>{n.prizes[k]=Number(e.target.value)||0;})}
-                        className="w-32 px-2 py-1 rounded-md text-sm text-right bg-stone-50 border border-transparent focus:bg-white focus:border-stone-200" />
-                    : <span className="text-sm font-semibold tabular-nums">{fmtMXN(state.prizes[k])}</span>}
+            <article className="rounded-2xl bg-white ring-1 ring-stone-200/70 overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-stone-900">Premios</h2>
+                    <p className="text-sm text-stone-400">
+                      Calculados con base en la bolsa recaudada. El admin puede ajustar manualmente.
+                    </p>
+                  </div>
                 </div>
-              ))}
-              <div className="border-t border-stone-100 pt-3 flex justify-between text-sm">
-                <span className="font-medium">Total premios</span><span className="font-semibold tabular-nums">{fmtMXN(totalPrizes)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-stone-400">
-                <span>Bolsa total</span><span className="tabular-nums">{fmtMXN(totalPool)}</span>
-              </div>
-              {totalPrizes!==totalPool && (
-                <div className={`text-xs px-3 py-2 rounded-lg ${totalPrizes>totalPool?"bg-rose-50 text-rose-600 ring-1 ring-rose-100":"bg-amber-50 text-amber-700 ring-1 ring-amber-100"}`}>
-                  {totalPrizes>totalPool
-                    ? `Los premios (${fmtMXN(totalPrizes)}) exceden la bolsa (${fmtMXN(totalPool)}).`
-                    : `Los premios no igualan la bolsa. Diferencia: ${fmtMXN(totalPool-totalPrizes)}.`}
+        
+                <div className="grid sm:grid-cols-4 gap-2 mb-4">
+                  {[
+                    ["Recaudado", fmtMXN(collected)],
+                    ["Lugares premiados", prizePlaces],
+                    ["Premios asignados", fmtMXN(totalPrizes)],
+                    ["Diferencia", fmtMXN(collected - totalPrizes)]
+                  ].map(([t,v])=>(
+                    <div key={t} className="rounded-xl bg-stone-50 px-3 py-3">
+                      <p className="text-xs text-stone-400">{t}</p>
+                      <p className="font-semibold text-stone-900">{v}</p>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-            {!admin && <p className="text-xs text-stone-400">Premios definidos para la quiniela.</p>}
+        
+                {admin && (
+                  <div className="rounded-xl bg-stone-50 px-3 py-3 mb-4">
+                    <label className="block text-xs text-stone-400 mb-2">
+                      Número de lugares premiados
+                    </label>
+        
+                    <div className="flex flex-wrap gap-2">
+                      {[1,2,3,4,5].map(n=>(
+                        <button
+                          key={n}
+                          onClick={()=>autoSuggestPrizes(n)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium ring-1 ${
+                            prizePlaces===n
+                              ? "bg-stone-800 text-white ring-stone-800"
+                              : "bg-white text-stone-600 ring-stone-200 hover:bg-stone-50"
+                          }`}
+                        >
+                          {n} {n===1 ? "lugar" : "lugares"}
+                        </button>
+                      ))}
+                    </div>
+        
+                    <p className="text-xs text-stone-400 mt-2">
+                      Al cambiar el número de lugares, la app propone una distribución automática usando la bolsa recaudada. Luego puedes editar los montos.
+                    </p>
+                  </div>
+                )}
+        
+                <div className="space-y-2">
+                  {prizes.map(p=>(
+                    <div key={p.place} className="flex items-center gap-2 rounded-xl bg-white ring-1 ring-stone-100 px-3 py-2">
+                      <span className="w-20 text-sm text-stone-500">{p.place}° lugar</span>
+        
+                      {admin ? (
+                        <input
+                          type="number"
+                          value={p.amount}
+                          onChange={e=>updatePrizeAmount(p.place, e.target.value)}
+                          className="flex-1 px-2 py-1 rounded-md text-sm bg-stone-50 hover:bg-stone-100 border border-transparent focus:bg-white focus:border-stone-200"
+                        />
+                      ) : (
+                        <span className="flex-1 font-semibold text-stone-900">
+                          {fmtMXN(p.amount)}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+        
+                {collected !== totalPrizes && (
+                  <div className={`mt-4 rounded-xl px-3 py-3 text-sm ${
+                    collected - totalPrizes === 0
+                      ? "bg-stone-50 text-stone-500"
+                      : collected - totalPrizes > 0
+                        ? "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
+                        : "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
+                  }`}>
+                    Diferencia entre bolsa recaudada y premios asignados: {fmtMXN(collected - totalPrizes)}.
+                  </div>
+                )}
+              </div>
+            </article>
           </section>
         )}
 
@@ -1541,7 +1656,10 @@ const resetPayments=()=>{
                 <div>
                   <h3 className="text-stone-900 font-semibold mb-1.5">Premios</h3>
                   <p className="text-sm text-stone-500">
-                    1° lugar {fmtMXN(state.prizes.first)} · 2° lugar {fmtMXN(state.prizes.second)} · 3° lugar {fmtMXN(state.prizes.third)}. Total {fmtMXN(totalPrizes)}.
+                    {prizes.map(p=>`${p.place}° lugar ${fmtMXN(p.amount)}`).join(" · ")}. Total {fmtMXN(totalPrizes)}.
+                  </p>
+                  <p className="text-xs text-stone-400 mt-1">
+                    Los premios se calculan con base en la bolsa recaudada y pueden ser ajustados por el admin antes del sorteo oficial.
                   </p>
                 </div>
         

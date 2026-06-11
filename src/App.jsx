@@ -149,8 +149,8 @@ const POT_MULTIPLIER = {
   3: 1.75
 };
 
-const ENTRY_FEE = 500;
-const NUM_PARTICIPANTS = 16;
+const DEFAULT_ENTRY_FEE = 500;
+const DEFAULT_PARTICIPANTS = 16;
 const IS_OFFICIAL_DRAW = false;
 const RANKING_SOURCE_LABEL = "FIFA/Coca-Cola Men's World Ranking";
 const RANKING_SOURCE_DATE = "1 de abril de 2026";
@@ -288,10 +288,18 @@ function initialState(){
   BOMBO_1.forEach(n=>teams[n]=makeTeam(n,1));
   BOMBO_2.forEach(n=>teams[n]=makeTeam(n,2));
   BOMBO_3.forEach(n=>teams[n]=makeTeam(n,3));
-  const participants=Array.from({length:NUM_PARTICIPANTS},(_,i)=>({id:i+1,name:`Participante ${i+1}`,paid:false,b1:null,b2:null,b3:null}));
+  const participants=Array.from({length:DEFAULT_PARTICIPANTS},(_,i)=>({
+    id:i+1,
+    name:`Participante ${i+1}`,
+    paid:false,
+    b1:null,
+    b2:null,
+    b3:null
+  }));
   return {
     participants,
     teams,
+    entryFee: DEFAULT_ENTRY_FEE,
     prizes:{first:4400,second:2400,third:1200},
     lastUpdated:null,
     source:"mock",
@@ -780,12 +788,15 @@ useEffect(()=>{
     return <div className="min-h-screen flex items-center justify-center text-stone-400 text-sm" style={{fontFamily:"ui-sans-serif,system-ui,sans-serif"}}>Cargando quiniela…</div>;
   }
 
-  const paidCount=state.participants.filter(p=>p.paid).length;
-  const unpaidCount=NUM_PARTICIPANTS-paidCount;
-  const collected=paidCount*ENTRY_FEE;
-  const pending=unpaidCount*ENTRY_FEE;
-  const totalPool=NUM_PARTICIPANTS*ENTRY_FEE;
-  const totalPrizes=state.prizes.first+state.prizes.second+state.prizes.third;
+  const entryFee = Number(state.entryFee ?? DEFAULT_ENTRY_FEE);
+  const participantCount = state.participants.length;
+  const paidCount = state.participants.filter(p=>p.paid).length;
+  const unpaidCount = participantCount - paidCount;
+  const collected = paidCount * entryFee;
+  const pending = unpaidCount * entryFee;
+  const potentialPool = participantCount * entryFee;
+  const totalPool = collected;
+  const totalPrizes = (state.prizes.first || 0) + (state.prizes.second || 0) + (state.prizes.third || 0);
   const phase=currentPhase(state.teams);
   const lastUpdatedLabel=state.lastUpdated?new Date(state.lastUpdated).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"Sin actualizaciones";
   const hasAssignedTeams = state.participants.some(p => p.b1 || p.b2 || p.b3);
@@ -846,6 +857,56 @@ useEffect(()=>{
       touchUpdated(n);
     });
   };
+  const addParticipant=()=>{
+  if(drawLocked){
+    alert("El sorteo está bloqueado. Desbloquéalo antes de agregar participantes.");
+    return;
+  }
+
+  update(n=>{
+    const nextId = Math.max(0, ...n.participants.map(p=>Number(p.id)||0)) + 1;
+    n.participants.push({
+      id: nextId,
+      name: `Participante ${n.participants.length + 1}`,
+      paid: false,
+      b1: null,
+      b2: null,
+      b3: null
+    });
+    touchUpdated(n);
+  });
+};
+
+const removeParticipant=(id)=>{
+  if(drawLocked){
+    alert("El sorteo está bloqueado. Desbloquéalo antes de eliminar participantes.");
+    return;
+  }
+
+  const participant = state.participants.find(p=>p.id===id);
+  const hasTeams = participant && (participant.b1 || participant.b2 || participant.b3);
+
+  if(hasTeams){
+    alert("Este participante ya tiene equipos asignados. Primero limpia el sorteo.");
+    return;
+  }
+
+  if(!window.confirm("¿Eliminar este participante?")) return;
+
+  update(n=>{
+    n.participants = n.participants.filter(p=>p.id!==id);
+    touchUpdated(n);
+  });
+};
+
+const resetPayments=()=>{
+  if(!window.confirm("¿Marcar todos los pagos como pendientes?")) return;
+
+  update(n=>{
+    n.participants.forEach(p=>{ p.paid = false; });
+    touchUpdated(n);
+  });
+};
   
   const actualizarResultados=async()=>{
     setLoadingResults(true);
@@ -920,7 +981,7 @@ useEffect(()=>{
 
   const TABS=[
     ["dashboard","Tabla"],
-    ["participantes","Pagos"],
+    ["participantes","Participantes"],
     ["equipos","Equipos"],
     ["resultados","Resultados"],
     ["partidos","Partidos"],
@@ -942,7 +1003,7 @@ useEffect(()=>{
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-[26px] sm:text-3xl font-semibold tracking-tight leading-none">Quiniela Peredo Mundial 2026</h1>
-              <p className="text-stone-400 text-sm mt-1.5">Bolsa de {fmtMXN(totalPool)} · {NUM_PARTICIPANTS} participantes</p>
+              <p className="text-stone-400 text-sm mt-1.5">Bolsa recaudada de {fmtMXN(totalPool)} · {participantCount} participantes</p>
             </div>
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               {admin
@@ -988,9 +1049,12 @@ useEffect(()=>{
         {tab==="dashboard" && (
           <section className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {[["Recaudado",fmtMXN(collected),`${paidCount} de ${NUM_PARTICIPANTS}`],
-                ["Pendiente",fmtMXN(pending),`${unpaidCount} sin pagar`],
-                ["Fase",phase,"actual"]].map(([t,v,s])=>(
+              {[
+                  ["Recaudado",fmtMXN(collected),`${paidCount} de ${participantCount}`],
+                  ["Pendiente",fmtMXN(pending),`${unpaidCount} sin pagar`],
+                  ["Bolsa potencial",fmtMXN(potentialPool),`${participantCount} registrados`],
+                  ["Fase",phase,"actual"]
+                ].map(([t,v,s])=>(
                 <div key={t} className="bg-white rounded-xl ring-1 ring-stone-200/70 p-3">
                   <div className="text-[11px] text-stone-400 uppercase tracking-wide">{t}</div>
                   <div className="text-base sm:text-lg font-semibold mt-1 leading-tight">{v}</div>
@@ -1041,33 +1105,133 @@ useEffect(()=>{
         )}
 
         {tab==="participantes" && (
-          <section className="space-y-5">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[["Pagados",paidCount],["Sin pagar",unpaidCount],["Recaudado",fmtMXN(collected)],["Pendiente",fmtMXN(pending)]].map(([t,v])=>(
-                <div key={t} className="bg-white rounded-xl ring-1 ring-stone-200/70 p-3">
-                  <div className="text-[11px] text-stone-400 uppercase tracking-wide">{t}</div>
-                  <div className="text-lg font-semibold mt-1">{v}</div>
-                </div>
-              ))}
-            </div>
-            {!admin && <p className="text-xs text-stone-400">Consulta de pagos y participantes.</p>}
-            <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
-              {state.participants.map((p,idx)=>(
-                <div key={p.id} className="px-3 sm:px-4 py-2.5 flex items-center gap-3">
-                  <span className="w-5 text-center text-xs text-stone-300 tabular-nums">{idx+1}</span>
-                  {admin
-                    ? <input value={p.name} onChange={e=>update(n=>{n.participants[idx].name=e.target.value;})}
-                        className="flex-1 min-w-0 px-2 py-1 rounded-md text-sm bg-stone-50 hover:bg-stone-100 border border-transparent focus:bg-white focus:border-stone-200" />
-                    : <span className="flex-1 text-sm">{p.name}</span>}
-                  {admin
-                    ? <button onClick={()=>update(n=>{n.participants[idx].paid=!n.participants[idx].paid;})}
-                        className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium ${p.paid?"bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100":"bg-amber-50 text-amber-700 ring-1 ring-amber-100 hover:bg-amber-100"}`}>
-                        {p.paid?"Pagado":"Pendiente"}
+          <section className="space-y-4">
+            <article className="rounded-2xl bg-white ring-1 ring-stone-200/70 overflow-hidden">
+              <div className="p-4 sm:p-5">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-stone-900">Participantes</h2>
+                    <p className="text-sm text-stone-400">
+                      Administra nombres, pagos y monto de entrada.
+                    </p>
+                  </div>
+        
+                  {admin && (
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={addParticipant}
+                        disabled={drawLocked}
+                        className="px-3 py-1.5 rounded-lg bg-stone-800 text-white text-sm font-medium hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Agregar participante
                       </button>
-                    : <Pill tone={p.paid?"paid":"due"}>{p.paid?"Pagado":"Pendiente"}</Pill>}
+        
+                      <button
+                        onClick={resetPayments}
+                        className="px-3 py-1.5 rounded-lg bg-white text-stone-600 text-sm font-medium ring-1 ring-stone-200 hover:bg-stone-50"
+                      >
+                        Resetear pagos
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+        
+                <div className="grid sm:grid-cols-5 gap-2 mb-4">
+                  {[
+                    ["Participantes", participantCount],
+                    ["Pagados", paidCount],
+                    ["Sin pagar", unpaidCount],
+                    ["Recaudado", fmtMXN(collected)],
+                    ["Pendiente", fmtMXN(pending)]
+                  ].map(([t,v])=>(
+                    <div key={t} className="rounded-xl bg-stone-50 px-3 py-3">
+                      <p className="text-xs text-stone-400">{t}</p>
+                      <p className="font-semibold text-stone-900">{v}</p>
+                    </div>
+                  ))}
+                </div>
+        
+                <div className="rounded-xl bg-stone-50 px-3 py-3 mb-4">
+                  <label className="block text-xs text-stone-400 mb-1">Monto de entrada</label>
+                  {admin ? (
+                    <input
+                      type="number"
+                      value={entryFee}
+                      onChange={e=>update(n=>{
+                        n.entryFee = Number(e.target.value)||0;
+                        touchUpdated(n);
+                      })}
+                      className="w-40 px-2 py-1 rounded-md text-sm bg-white border border-stone-200"
+                    />
+                  ) : (
+                    <p className="font-semibold text-stone-900">{fmtMXN(entryFee)}</p>
+                  )}
+                </div>
+        
+                <div className="space-y-2">
+                  {state.participants.map((p,idx)=>(
+                    <div key={p.id} className="flex items-center gap-2 rounded-xl bg-white ring-1 ring-stone-100 px-3 py-2">
+                      <span className="w-6 text-xs text-stone-300 tabular-nums">{idx+1}</span>
+        
+                      {admin ? (
+                        <input
+                          value={p.name}
+                          onChange={e=>update(n=>{
+                            const row = n.participants.find(x=>x.id===p.id);
+                            if(row) row.name = e.target.value;
+                            touchUpdated(n);
+                          })}
+                          className="flex-1 min-w-0 px-2 py-1 rounded-md text-sm bg-stone-50 hover:bg-stone-100 border border-transparent focus:bg-white focus:border-stone-200"
+                        />
+                      ) : (
+                        <span className="flex-1 min-w-0 text-sm text-stone-700">{p.name}</span>
+                      )}
+        
+                      {admin ? (
+                        <button
+                          onClick={()=>update(n=>{
+                            const row = n.participants.find(x=>x.id===p.id);
+                            if(row) row.paid = !row.paid;
+                            touchUpdated(n);
+                          })}
+                          className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium ${
+                            p.paid
+                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 hover:bg-emerald-100"
+                              : "bg-amber-50 text-amber-700 ring-1 ring-amber-100 hover:bg-amber-100"
+                          }`}
+                        >
+                          {p.paid ? "Pagado" : "Pendiente"}
+                        </button>
+                      ) : (
+                        <span className={`shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium ${
+                          p.paid
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                            : "bg-amber-50 text-amber-700 ring-1 ring-amber-100"
+                        }`}>
+                          {p.paid ? "Pagado" : "Pendiente"}
+                        </span>
+                      )}
+        
+                      {admin && (
+                        <button
+                          onClick={()=>removeParticipant(p.id)}
+                          disabled={drawLocked}
+                          className="shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium bg-white text-stone-400 ring-1 ring-stone-200 hover:text-rose-600 hover:ring-rose-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+        
+                {!admin && (
+                  <p className="text-xs text-stone-400 mt-3">
+                    Consulta de participantes y pagos. Solo el admin puede editar.
+                  </p>
+                )}
+              </div>
+            </article>
           </section>
         )}
 
@@ -1363,9 +1527,9 @@ useEffect(()=>{
         
                 <div className="grid grid-cols-3 gap-2">
                   {[
-                    ["Entrada", fmtMXN(ENTRY_FEE)],
-                    ["Participantes", String(NUM_PARTICIPANTS)],
-                    ["Bolsa", fmtMXN(totalPool)]
+                    ["Entrada", fmtMXN(entryFee)],
+                    ["Participantes", String(participantCount)],
+                    ["Recaudado", fmtMXN(collected)]
                   ].map(([t,v])=>(
                     <div key={t} className="rounded-xl bg-stone-50 px-3 py-3">
                       <p className="text-xs text-stone-400">{t}</p>

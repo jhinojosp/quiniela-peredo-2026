@@ -11,7 +11,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
-const ROW_ID = 1;
+const ROW_ID = "quiniela-peredo-2026";
 
 const BOMBO_1 = ["Francia","España","Argentina","Inglaterra","Portugal","Brasil","Países Bajos","Marruecos","Bélgica","Alemania","Croacia","Colombia","Senegal","México","Estados Unidos","Uruguay"];
 const BOMBO_2 = ["Japón","Suiza","Irán","Turquía","Ecuador","Austria","Corea del Sur","Australia","Argelia","Egipto","Canadá","Noruega","Panamá","Costa de Marfil","Suecia","Paraguay"];

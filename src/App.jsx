@@ -296,11 +296,16 @@ function initialState(){
     b2:null,
     b3:null
   }));
+  
   return {
     participants,
     teams,
     entryFee: DEFAULT_ENTRY_FEE,
-    prizes:{first:4400,second:2400,third:1200},
+    prizes:[
+      {place:1, amount:4400},
+      {place:2, amount:2400},
+      {place:3, amount:1200}
+    ],
     lastUpdated:null,
     source:"mock",
     drawLocked:false
@@ -934,7 +939,7 @@ const suggestPrizes=(places, pool)=>{
   }));
 };
 
-const normalizePrizes=(prizes)=>{
+function normalizePrizes(prizes){
   if(Array.isArray(prizes)) return prizes;
 
   return [
@@ -942,7 +947,7 @@ const normalizePrizes=(prizes)=>{
     {place: 2, amount: prizes?.second || 0},
     {place: 3, amount: prizes?.third || 0}
   ];
-};
+}
 
 const updatePrizeAmount=(place, amount)=>{
   update(n=>{

@@ -218,11 +218,10 @@ const RANKING_SOURCE_DATE = "1 de abril de 2026";
 const RANKING_SOURCE_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 
 const fmtMXN = (n) => new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0}).format(n||0);
-
 function teamPot(t){
   if(!t) return 1;
-  if(t.pot) return Number(t.pot);
   if(t.dynamicPot) return Number(t.dynamicPot);
+  if(t.pot) return Number(t.pot);
   if(BOMBO_1.includes(t.team)) return 1;
   if(BOMBO_2.includes(t.team)) return 2;
   if(BOMBO_3.includes(t.team)) return 3;
@@ -478,11 +477,12 @@ function standingsTieKey(row){
 }
 
 function estimatedPrizeForRow(row, standings, prizes){
-  const prizeByPosition = {
-    1: prizes.first,
-    2: prizes.second,
-    3: prizes.third
-  };
+const normalizedPrizes = normalizePrizes(prizes);
+
+const prizeByPosition = normalizedPrizes.reduce((acc,p)=>{
+  acc[p.place] = Number(p.amount) || 0;
+  return acc;
+},{});
 
   const rowIndex = standings.findIndex(r => r.id === row.id);
   if(rowIndex === -1) return 0;
@@ -1313,9 +1313,15 @@ const autoSuggestPrizes=(places)=>{
                           {!r.paid && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Pago pendiente"></span>}
                         </div>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {[r.t1,r.t2,r.t3].map((t,i)=>t
-                            ? <Pill key={i} tone={stageTone(teamStageRank(t))}>{teamLabel(t.team)} · {teamPoints(t)}</Pill>
-                            : <Pill key={i} tone="neutral">—</Pill>)}
+                            {r.teamObjects.length > 0 ? (
+                              r.teamObjects.map((t,i)=>(
+                                <Pill key={`${r.id}-${t.team}-${i}`} tone={stageTone(teamStageRank(t))}>
+                                  {teamLabel(t.team)} · {teamPoints(t)}
+                                </Pill>
+                              ))
+                            ) : (
+                              <Pill tone="neutral">Sin equipos</Pill>
+                            )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -1470,75 +1476,117 @@ const autoSuggestPrizes=(places)=>{
 
         {tab==="equipos" && (
           <section className="space-y-4">
-            {admin
-              ? <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={sortear}
-                    disabled={drawLocked}
-                    className="px-3 py-1.5 rounded-lg bg-stone-800 text-white text-sm font-medium hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Sortear equipos
-                  </button>
-            
-                  <button
-                    onClick={limpiarSorteo}
-                    disabled={drawLocked}
-                    className="px-3 py-1.5 rounded-lg bg-white text-stone-600 text-sm font-medium ring-1 ring-stone-200 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Limpiar sorteo
-                  </button>
-            
-                  <button
-                    onClick={toggleDrawLock}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium ring-1 ${
-                      drawLocked
-                        ? "bg-emerald-50 text-emerald-700 ring-emerald-100 hover:bg-emerald-100"
-                        : "bg-amber-50 text-amber-700 ring-amber-100 hover:bg-amber-100"
-                    }`}
-                  >
-                    {drawLocked ? "Desbloquear sorteo" : "Bloquear sorteo oficial"}
-                  </button>
-                </div>
-              : null}
-              <div className="text-xs text-stone-400 space-y-1">
-                <p>Cada participante recibe un equipo de cada bombo, sin repetir.</p>
-                <p>
-                  Bombos internos construidos con base en el {RANKING_SOURCE_LABEL} publicado el {RANKING_SOURCE_DATE}.{" "}
-                  <a
-                    href={RANKING_SOURCE_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-stone-600 underline decoration-stone-300 underline-offset-4 hover:text-stone-900"
-                  >
-                    Ver fuente FIFA
-                  </a>
-                </p>
+            {admin ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={sortear}
+                  disabled={drawLocked}
+                  className="px-3 py-1.5 rounded-lg bg-stone-800 text-white text-sm font-medium hover:bg-stone-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Sortear equipos
+                </button>
+        
+                <button
+                  onClick={limpiarSorteo}
+                  disabled={drawLocked}
+                  className="px-3 py-1.5 rounded-lg bg-white text-stone-600 text-sm font-medium ring-1 ring-stone-200 hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Limpiar sorteo
+                </button>
+        
+                <button
+                  onClick={toggleDrawLock}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium ring-1 ${
+                    drawLocked
+                      ? "bg-emerald-50 text-emerald-700 ring-emerald-100 hover:bg-emerald-100"
+                      : "bg-amber-50 text-amber-700 ring-amber-100 hover:bg-amber-100"
+                  }`}
+                >
+                  {drawLocked ? "Desbloquear sorteo" : "Bloquear sorteo oficial"}
+                </button>
               </div>
-            <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
-              {state.participants.map((p,idx)=>(
-                <div key={p.id} className="px-3 sm:px-4 py-2.5">
-                  <div className="text-sm font-medium mb-1.5">{p.name}</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                    {[["b1",BOMBO_1,"1"],["b2",BOMBO_2,"2"],["b3",BOMBO_3,"3"]].map(([key,list,n])=>(
-                      <div key={key}>
-                        <div className="text-[10px] text-stone-400 mb-0.5 uppercase tracking-wide">Bombo {n}</div>
-                        {admin
-                          ? <select
-                              value={p[key]||""}
-                              disabled={drawLocked}
-                              onChange={e=>update(nn=>{nn.participants[idx][key]=e.target.value||null;})}
-                              className="w-full px-1.5 py-1 rounded-md text-xs bg-stone-50 border border-transparent focus:bg-white focus:border-stone-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <option value="">—</option>
-                              {list.map(t=><option key={t} value={t}>{t}</option>)}
-                            </select>
-                          : <div className="text-xs px-1.5 py-1 rounded-md bg-stone-50 truncate">{teamLabel(p[key])}</div>}
-                      </div>
-                    ))}
-                  </div>
+            ) : null}
+        
+            <div className="text-xs text-stone-400 space-y-1">
+              <p>
+                El sorteo se calcula dinámicamente según el número de participantes registrados.
+              </p>
+              <p>
+                Todos reciben el mismo número de equipos. Si sobran equipos, quedan fuera los peor rankeados entre las selecciones clasificadas.
+              </p>
+              <p>
+                Fuente de ranking: {RANKING_SOURCE_LABEL} publicado el {RANKING_SOURCE_DATE}.{" "}
+                <a
+                  href={RANKING_SOURCE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-stone-600 underline decoration-stone-300 underline-offset-4 hover:text-stone-900"
+                >
+                  Ver fuente FIFA
+                </a>
+              </p>
+            </div>
+        
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {[
+                ["Participantes", participantCount],
+                ["Equipos/persona", state.drawConfig?.teamsPerParticipant ?? Math.floor(QUALIFIED_TEAMS_BY_FIFA_RANK.length / Math.max(1, participantCount))],
+                ["Equipos usados", state.drawConfig?.teamsUsedCount ?? "—"],
+                ["Excluidos", state.drawConfig?.excludedTeams?.length ?? 0]
+              ].map(([t,v])=>(
+                <div key={t} className="bg-white rounded-xl ring-1 ring-stone-200/70 p-3">
+                  <div className="text-[11px] text-stone-400 uppercase tracking-wide">{t}</div>
+                  <div className="text-base font-semibold mt-1 leading-tight">{v}</div>
                 </div>
               ))}
             </div>
+        
+            <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
+              {state.participants.map((p)=> {
+                const refs = participantTeamRefs(p);
+        
+                return (
+                  <div key={p.id} className="px-3 sm:px-4 py-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="text-sm font-medium">{p.name}</div>
+                      <div className="text-[11px] text-stone-400">
+                        {refs.length} {refs.length===1 ? "equipo" : "equipos"}
+                      </div>
+                    </div>
+        
+                    {refs.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {refs.map((ref,i)=>(
+                          <Pill key={`${p.id}-${ref.team}-${i}`} tone="neutral">
+                            B{ref.pot} · {teamLabel(ref.team)}
+                          </Pill>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs px-2 py-2 rounded-md bg-stone-50 text-stone-400">
+                        Sin equipos asignados
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+        
+            {state.drawConfig?.excludedTeams?.length > 0 && (
+              <div className="bg-white rounded-xl ring-1 ring-stone-200/70 p-4">
+                <h3 className="text-sm font-semibold text-stone-900 mb-2">Equipos excluidos</h3>
+                <p className="text-xs text-stone-400 mb-3">
+                  Estos equipos quedaron fuera para que todos reciban el mismo número de equipos.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {state.drawConfig.excludedTeams.map(team=>(
+                    <span key={team} className="px-2 py-1 rounded-md bg-stone-50 ring-1 ring-stone-100 text-xs text-stone-500">
+                      {teamRankingLabel(team)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
         )}
 

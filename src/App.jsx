@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Quiniela Mundial 2026 — persistencia compartida con Supabase.
+// Quiniela Peredo Mundial 2026 — persistencia compartida con Supabase.
 // Estética inspirada en Notion/Ghost: neutra, espaciada, sutil.
 // La lógica de puntos y desempates es idéntica a la versión previa.
 // ============================================================
@@ -941,7 +941,7 @@ useEffect(()=>{
         <header className="mb-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h1 className="text-[26px] sm:text-3xl font-semibold tracking-tight leading-none">Quiniela Mundial 2026</h1>
+              <h1 className="text-[26px] sm:text-3xl font-semibold tracking-tight leading-none">Quiniela Peredo Mundial 2026</h1>
               <p className="text-stone-400 text-sm mt-1.5">Bolsa de {fmtMXN(totalPool)} · {NUM_PARTICIPANTS} participantes</p>
             </div>
             <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -1358,7 +1358,7 @@ useEffect(()=>{
               <div className="p-4 sm:p-6 space-y-5">
                 <div>
                   <h2 className="text-xl font-semibold text-stone-900">Reglas</h2>
-                  <p className="text-sm text-stone-400 mt-1">Quiniela Mundial 2026</p>
+                  <p className="text-sm text-stone-400 mt-1">Quiniela Peredo Mundial 2026</p>
                 </div>
         
                 <div className="grid grid-cols-3 gap-2">
@@ -1571,7 +1571,7 @@ useEffect(()=>{
           </section>
         )}
 
-        <footer className="mt-10 text-center text-[11px] text-stone-300">Quiniela Mundial 2026</footer>
+        <footer className="mt-10 text-center text-[11px] text-stone-300">Quiniela Peredo Mundial 2026</footer>
       </div>
     </div>
   );

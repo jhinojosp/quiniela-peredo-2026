@@ -125,6 +125,65 @@ const FIFA_RANK = {
   "Nueva Zelanda": 85
 };
 
+const QUALIFIED_TEAMS_BY_FIFA_RANK = [
+  ...BOMBO_1,
+  ...BOMBO_2,
+  ...BOMBO_3
+].sort((a,b)=>(FIFA_RANK[a] || 999) - (FIFA_RANK[b] || 999));
+
+function buildDynamicDraw(participantCount){
+  const totalTeams = QUALIFIED_TEAMS_BY_FIFA_RANK.length;
+
+  if(participantCount <= 0){
+    return {
+      teamsPerParticipant: 0,
+      teamsUsedCount: 0,
+      selectedTeams: [],
+      excludedTeams: [],
+      pots: []
+    };
+  }
+
+  const teamsPerParticipant = Math.floor(totalTeams / participantCount);
+  const teamsUsedCount = teamsPerParticipant * participantCount;
+  const selectedTeams = QUALIFIED_TEAMS_BY_FIFA_RANK.slice(0, teamsUsedCount);
+  const excludedTeams = QUALIFIED_TEAMS_BY_FIFA_RANK.slice(teamsUsedCount);
+
+  const pots = Array.from({length: teamsPerParticipant},(_,potIndex)=>{
+    const start = potIndex * participantCount;
+    const end = start + participantCount;
+
+    return selectedTeams.slice(start,end).map(team=>({
+      team,
+      pot: potIndex + 1
+    }));
+  });
+
+  return {
+    teamsPerParticipant,
+    teamsUsedCount,
+    selectedTeams,
+    excludedTeams,
+    pots
+  };
+}
+
+function participantTeamRefs(p){
+  if(Array.isArray(p.teams) && p.teams.length){
+    return p.teams.filter(Boolean);
+  }
+
+  return [
+    p.b1 ? {team:p.b1,pot:1} : null,
+    p.b2 ? {team:p.b2,pot:2} : null,
+    p.b3 ? {team:p.b3,pot:3} : null
+  ].filter(Boolean);
+}
+
+function participantTeamNames(p){
+  return participantTeamRefs(p).map(x=>x.team);
+}
+
 const flagOf = (team) => FLAGS[team] || "🏳️";
 const teamLabel = (team) => team ? `${flagOf(team)} ${team}` : "—";
 function teamRankingLabel(team){
@@ -142,11 +201,13 @@ const SCORING = {
   reachedFinal: 20,
   champion: 24
 };
-
 const POT_MULTIPLIER = {
   1: 1.00,
   2: 1.25,
-  3: 1.75
+  3: 1.75,
+  4: 2.25,
+  5: 2.75,
+  6: 3.25
 };
 
 const DEFAULT_ENTRY_FEE = 500;
@@ -161,6 +222,7 @@ const fmtMXN = (n) => new Intl.NumberFormat("es-MX",{style:"currency",currency:"
 function teamPot(t){
   if(!t) return 1;
   if(t.pot) return Number(t.pot);
+  if(t.dynamicPot) return Number(t.dynamicPot);
   if(BOMBO_1.includes(t.team)) return 1;
   if(BOMBO_2.includes(t.team)) return 2;
   if(BOMBO_3.includes(t.team)) return 3;
@@ -350,19 +412,48 @@ function currentPhase(teams){
 }
 
 function computeStandings(state){
-  const rows=state.participants.map(p=>{
-    const t1=state.teams[p.b1],t2=state.teams[p.b2],t3=state.teams[p.b3];
-    const total=[t1,t2,t3].reduce((s,t)=>s+teamPoints(t),0);
-    const sortedStages=[t1,t2,t3].map(teamStageRank).sort((a,b)=>b-a);
-    return {...p,total,t1,t2,t3,sortedStages};
+  const rows = state.participants.map(p=>{
+    const refs = participantTeamRefs(p);
+    const teamObjects = refs.map(ref=>state.teams[ref.team]).filter(Boolean);
+
+    const total = teamObjects.reduce((sum,t)=>sum+teamPoints(t),0);
+    const sortedStages = teamObjects.map(teamStageRank).sort((a,b)=>b-a);
+
+    return {
+      ...p,
+      total,
+      teamRefs: refs,
+      teamObjects,
+      t1: teamObjects[0] || null,
+      t2: teamObjects[1] || null,
+      t3: teamObjects[2] || null,
+      sortedStages
+    };
   });
+
   rows.sort((a,b)=>{
     if(b.total!==a.total) return b.total-a.total;
-    for(let i=0;i<3;i++){ if(b.sortedStages[i]!==a.sortedStages[i]) return b.sortedStages[i]-a.sortedStages[i]; }
+
+    const maxLen = Math.max(a.sortedStages.length,b.sortedStages.length);
+
+    for(let i=0;i<maxLen;i++){
+      const av = a.sortedStages[i] || 0;
+      const bv = b.sortedStages[i] || 0;
+      if(bv!==av) return bv-av;
+    }
+
     return 0;
   });
+
   let rank=0,prevKey=null;
-  rows.forEach((r,idx)=>{const key=r.total+"|"+r.sortedStages.join(",");if(key!==prevKey)rank=idx+1;r.rank=rank;prevKey=key;});
+
+  rows.forEach((r,idx)=>{
+    const key=r.total+"|"+r.sortedStages.join(",");
+    if(key!==prevKey) rank=idx+1;
+    r.rank=rank;
+    prevKey=key;
+  });
+
   return rows;
 }
 
@@ -582,7 +673,7 @@ function teamPointsThroughPhase(t, phaseKey){
 }
 
 function participantPointsThroughPhase(p, teams, phaseKey){
-  return [p.b1,p.b2,p.b3].reduce((sum, teamName) => {
+  return participantTeamNames(p).reduce((sum, teamName) => {
     return sum + teamPointsThroughPhase(teams[teamName], phaseKey);
   }, 0);
 }
@@ -806,7 +897,7 @@ useEffect(()=>{
   const totalPrizes = prizes.reduce((sum,p)=>sum + (Number(p.amount)||0), 0);
   const phase=currentPhase(state.teams);
   const lastUpdatedLabel=state.lastUpdated?new Date(state.lastUpdated).toLocaleString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"Sin actualizaciones";
-  const hasAssignedTeams = state.participants.some(p => p.b1 || p.b2 || p.b3);
+  const hasAssignedTeams = state.participants.some(p => participantTeamNames(p).length > 0);
   const drawLocked = !!state.drawLocked;
 
   const sourceName =
@@ -824,24 +915,108 @@ useEffect(()=>{
       })
     : null;
   
-  const sortear=()=>{
-    if(drawLocked){
-      alert("El sorteo está bloqueado. Desbloquéalo en modo Admin si necesitas hacer cambios.");
-      return;
+const sortear=()=>{
+  if(drawLocked){
+    alert("El sorteo está bloqueado. Desbloquéalo en modo Admin si necesitas hacer cambios.");
+    return;
+  }
+
+  const participantCount = state.participants.length;
+  const draw = buildDynamicDraw(participantCount);
+
+  if(draw.teamsPerParticipant < 1){
+    alert("Hay demasiados participantes para repartir equipos. El máximo es 48 participantes.");
+    return;
+  }
+
+  if(hasAssignedTeams && !window.confirm("¿Sobrescribir las asignaciones actuales?")) return;
+
+  const shuffle=(arr)=>{
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
     }
-    const hasDraw=state.participants.some(p=>p.b1||p.b2||p.b3);
-    if(hasDraw && !window.confirm("Ya existe un sorteo. ¿Sobrescribir las asignaciones actuales?")) return;
-    const shuffle=(arr)=>{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
-    const s1=shuffle(BOMBO_1),s2=shuffle(BOMBO_2),s3=shuffle(BOMBO_3);
-    update(n=>{n.participants.forEach((p,i)=>{p.b1=s1[i];p.b2=s2[i];p.b3=s3[i];});touchUpdated(n);});
+    return a;
   };
+
+  const shuffledPots = draw.pots.map(pot=>shuffle(pot));
+
+  update(n=>{
+    n.drawConfig = {
+      participantCount,
+      teamsPerParticipant: draw.teamsPerParticipant,
+      teamsUsedCount: draw.teamsUsedCount,
+      excludedTeams: draw.excludedTeams,
+      createdAt: new Date().toISOString()
+    };
+
+    Object.values(n.teams).forEach(t=>{
+      t.excluded = false;
+      t.dynamicPot = null;
+    });
+
+    draw.excludedTeams.forEach(teamName=>{
+      if(n.teams[teamName]){
+        n.teams[teamName].excluded = true;
+        n.teams[teamName].dynamicPot = null;
+        n.teams[teamName].pot = null;
+      }
+    });
+
+    shuffledPots.forEach((pot,potIndex)=>{
+      pot.forEach(ref=>{
+        if(n.teams[ref.team]){
+          n.teams[ref.team].excluded = false;
+          n.teams[ref.team].dynamicPot = potIndex + 1;
+          n.teams[ref.team].pot = potIndex + 1;
+        }
+      });
+    });
+
+    n.participants.forEach((p,i)=>{
+      const assigned = shuffledPots.map(pot=>pot[i]).filter(Boolean);
+
+      p.teams = assigned;
+
+      // Backward compatibility para partes viejas de la UI
+      p.b1 = assigned[0]?.team || null;
+      p.b2 = assigned[1]?.team || null;
+      p.b3 = assigned[2]?.team || null;
+    });
+
+    touchUpdated(n);
+  });
+};
   const limpiarSorteo=()=>{
     if(drawLocked){
       alert("El sorteo está bloqueado. Desbloquéalo en modo Admin si necesitas hacer cambios.");
       return;
     }
-    if(!window.confirm("¿Limpiar el sorteo? Se quitan los equipos asignados; se conservan nombres y pagos.")) return;
-    update(n=>{n.participants.forEach(p=>{p.b1=null;p.b2=null;p.b3=null;});touchUpdated(n);});
+  
+    if(!window.confirm("¿Limpiar el sorteo actual?")) return;
+  
+    update(n=>{
+      n.participants.forEach(p=>{
+        p.b1=null;
+        p.b2=null;
+        p.b3=null;
+        p.teams=[];
+      });
+  
+      Object.values(n.teams).forEach(t=>{
+        t.excluded = false;
+        t.dynamicPot = null;
+  
+        // Regresa al bombo original como fallback visual
+        if(BOMBO_1.includes(t.team)) t.pot = 1;
+        else if(BOMBO_2.includes(t.team)) t.pot = 2;
+        else if(BOMBO_3.includes(t.team)) t.pot = 3;
+      });
+  
+      n.drawConfig = null;
+      touchUpdated(n);
+    });
   };
 
   const toggleDrawLock=()=>{
@@ -891,7 +1066,7 @@ const removeParticipant=(id)=>{
   }
 
   const participant = state.participants.find(p=>p.id===id);
-  const hasTeams = participant && (participant.b1 || participant.b2 || participant.b3);
+  const hasTeams = participant && participantTeamNames(participant).length > 0;
 
   if(hasTeams){
     alert("Este participante ya tiene equipos asignados. Primero limpia el sorteo.");

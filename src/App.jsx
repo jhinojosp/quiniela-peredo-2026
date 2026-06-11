@@ -218,6 +218,21 @@ const RANKING_SOURCE_DATE = "1 de abril de 2026";
 const RANKING_SOURCE_URL = "https://inside.fifa.com/fifa-world-ranking/men";
 
 const fmtMXN = (n) => new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0}).format(n||0);
+function makeTeam(name, pot){
+  return {
+    team: name,
+    pot,
+    dynamicPot: null,
+    excluded: false,
+    reachedR32: false,
+    reachedR16: false,
+    reachedR8: false,
+    reachedSemifinal: false,
+    wonThirdPlace: false,
+    reachedFinal: false,
+    champion: false
+  };
+}
 function teamPot(t){
   if(!t) return 1;
   if(t.dynamicPot) return Number(t.dynamicPot);
@@ -477,12 +492,19 @@ function standingsTieKey(row){
 }
 
 function estimatedPrizeForRow(row, standings, prizes){
-const normalizedPrizes = normalizePrizes(prizes);
 
-const prizeByPosition = normalizedPrizes.reduce((acc,p)=>{
-  acc[p.place] = Number(p.amount) || 0;
-  return acc;
-},{});
+  const normalizedPrizes = Array.isArray(prizes)
+    ? prizes
+    : [
+        {place: 1, amount: prizes?.first || 0},
+        {place: 2, amount: prizes?.second || 0},
+        {place: 3, amount: prizes?.third || 0}
+      ];
+  
+  const prizeByPosition = normalizedPrizes.reduce((acc,p)=>{
+    acc[p.place] = Number(p.amount) || 0;
+    return acc;
+  },{});
 
   const rowIndex = standings.findIndex(r => r.id === row.id);
   if(rowIndex === -1) return 0;

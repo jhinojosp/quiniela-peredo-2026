@@ -1961,9 +1961,9 @@ const autoSuggestPrizes=(places)=>{
     </div>
 
     <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
-      {matches
-        .filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter)
-        .map((m,idx)=>(
+      {sortMatchesChronologically(
+        matches.filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter)
+      ).map((m,idx)=>(
           <div key={`${m.date}-${m.num || idx}`} className="px-4 py-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-1">

@@ -679,6 +679,7 @@ function matchBucket(round){
 
 const CHART_PHASES = [
   { key:"start", label:"Inicio" },
+  { key:"groups", label:"Grupos" },
   { key:"r32", label:"R32" },
   { key:"r16", label:"Octavos" },
   { key:"r8", label:"Cuartos" },
@@ -689,17 +690,23 @@ const CHART_PHASES = [
 
 function teamPointsThroughPhase(t, phaseKey){
   if(!t) return 0;
-  let p = 0;
 
-  if(["r32","r16","r8","semi","final","champion"].includes(phaseKey) && t.reachedR32) p += SCORING.reachedR32;
-  if(["r16","r8","semi","final","champion"].includes(phaseKey) && t.reachedR16) p += SCORING.reachedR16;
-  if(["r8","semi","final","champion"].includes(phaseKey) && t.reachedR8) p += SCORING.reachedR8;
-  if(["semi","final","champion"].includes(phaseKey) && t.reachedSemifinal) p += SCORING.reachedSemifinal;
-  if(["final","champion"].includes(phaseKey) && t.wonThirdPlace) p += SCORING.wonThirdPlace;
-  if(["final","champion"].includes(phaseKey) && t.reachedFinal) p += SCORING.reachedFinal;
-  if(phaseKey==="champion" && t.champion) p += SCORING.champion;
+  let base = 0;
 
-  return p;
+  if(["groups","r32","r16","r8","semi","final","champion"].includes(phaseKey)){
+    base += (Number(t.groupWins) || 0) * SCORING.groupWin;
+    base += (Number(t.groupDraws) || 0) * SCORING.groupDraw;
+  }
+
+  if(["r32","r16","r8","semi","final","champion"].includes(phaseKey) && t.reachedR32) base += SCORING.reachedR32;
+  if(["r16","r8","semi","final","champion"].includes(phaseKey) && t.reachedR16) base += SCORING.reachedR16;
+  if(["r8","semi","final","champion"].includes(phaseKey) && t.reachedR8) base += SCORING.reachedR8;
+  if(["semi","final","champion"].includes(phaseKey) && t.reachedSemifinal) base += SCORING.reachedSemifinal;
+  if(["final","champion"].includes(phaseKey) && t.wonThirdPlace) base += SCORING.wonThirdPlace;
+  if(["final","champion"].includes(phaseKey) && t.reachedFinal) base += SCORING.reachedFinal;
+  if(phaseKey==="champion" && t.champion) base += SCORING.champion;
+
+  return Math.round(base * teamMultiplier(t));
 }
 
 function participantPointsThroughPhase(p, teams, phaseKey){
@@ -1672,14 +1679,59 @@ const autoSuggestPrizes=(places)=>{
               <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead><tr className="text-stone-400 text-left border-b border-stone-100">
-                    <th className="px-3 py-2 font-medium">Equipo</th><th className="px-1 py-2 font-medium text-center">B</th>
+                    <th className="px-3 py-2 font-medium">Equipo</th>
+                    <th className="px-1 py-2 font-medium text-center">B</th>
+                    <th className="px-1 py-2 font-medium text-center">G</th>
+                    <th className="px-1 py-2 font-medium text-center">E</th>
+                    <th className="px-1 py-2 font-medium text-center">P</th>
                     {[["reachedR32","R32"],["reachedR16","R16"],["reachedR8","R8"],["reachedSemifinal","Sf"],["wonThirdPlace","3°"],["reachedFinal","Fn"],["champion","Cmp"]].map(([k,l])=><th key={k} className="px-1 py-2 font-medium text-center">{l}</th>)}
                     <th className="px-2 py-2 font-medium text-center">Pts</th>
                   </tr></thead>
                   <tbody className="divide-y divide-stone-50">
                     {Object.values(state.teams).sort((a,b)=>a.pot-b.pot||a.team.localeCompare(b.team)).map(t=>(
                       <tr key={t.team} className="hover:bg-stone-50/60">
-                        <td className="px-3 py-1.5 whitespace-nowrap">{teamLabel(t.team)}</td><td className="px-1 py-1.5 text-center text-stone-400">{t.pot}</td>
+                        <td className="px-3 py-1.5 whitespace-nowrap">{teamLabel(t.team)}</td><td className="px-1 py-1.5 text-center text-stone-400">{teamPot(t)}</td>
+                        <td className="px-1 py-1.5 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="3"
+                            value={t.groupWins || 0}
+                            onChange={e=>update(n=>{
+                              n.teams[t.team].groupWins = Math.max(0, Math.min(3, Number(e.target.value) || 0));
+                              touchUpdated(n);
+                            })}
+                            className="w-10 px-1 py-0.5 rounded-md text-xs text-center bg-stone-50 border border-stone-100"
+                          />
+                        </td>
+                        
+                        <td className="px-1 py-1.5 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="3"
+                            value={t.groupDraws || 0}
+                            onChange={e=>update(n=>{
+                              n.teams[t.team].groupDraws = Math.max(0, Math.min(3, Number(e.target.value) || 0));
+                              touchUpdated(n);
+                            })}
+                            className="w-10 px-1 py-0.5 rounded-md text-xs text-center bg-stone-50 border border-stone-100"
+                          />
+                        </td>
+                        
+                        <td className="px-1 py-1.5 text-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="3"
+                            value={t.groupLosses || 0}
+                            onChange={e=>update(n=>{
+                              n.teams[t.team].groupLosses = Math.max(0, Math.min(3, Number(e.target.value) || 0));
+                              touchUpdated(n);
+                            })}
+                            className="w-10 px-1 py-0.5 rounded-md text-xs text-center bg-stone-50 border border-stone-100"
+                          />
+                        </td>
                         {["reachedR32","reachedR16","reachedR8","reachedSemifinal","wonThirdPlace","reachedFinal","champion"].map(k=>(
                           <td key={k} className="px-1 py-1.5 text-center">
                             <input

@@ -193,6 +193,8 @@ function teamRankingLabel(team){
 
 
 const SCORING = {
+  groupWin: 3,
+  groupDraw: 1,
   reachedR32: 4,
   reachedR16: 8,
   reachedR8: 12,
@@ -224,6 +226,9 @@ function makeTeam(name, pot){
     pot,
     dynamicPot: null,
     excluded: false,
+    groupWins: 0,
+    groupDraws: 0,
+    groupLosses: 0,
     reachedR32: false,
     reachedR16: false,
     reachedR8: false,
@@ -251,6 +256,9 @@ function teamPoints(t){
   if(!t) return 0;
 
   let base = 0;
+
+  base += (Number(t.groupWins) || 0) * SCORING.groupWin;
+  base += (Number(t.groupDraws) || 0) * SCORING.groupDraw;
 
   if(t.reachedR32) base += SCORING.reachedR32;
   if(t.reachedR16) base += SCORING.reachedR16;

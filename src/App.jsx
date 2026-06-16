@@ -1025,23 +1025,6 @@ useEffect(()=>{
     }
   };
 
-  const refreshMatches=async()=>{
-    setMatchesLoading(true);
-  
-    try {
-      const response = await fetch("/api/openfootball-worldcup");
-      const data = await response.json();
-  
-      if(!response.ok) throw new Error(data.error || "No se pudieron cargar partidos.");
-  
-      setMatches(data?.data?.matches || []);
-    } catch(e) {
-      setError("No se pudieron cargar partidos de OpenFootball: " + (e.message || ""));
-    } finally {
-      setMatchesLoading(false);
-    }
-  };
-
   loadMatches();
 
   return () => {
@@ -1962,21 +1945,16 @@ const autoSuggestPrizes=(places)=>{
         </span>
       </div>
     </div>
-
     <div className="flex gap-1.5 overflow-x-auto pb-1">
       {[
-        ["todos","Todos"],
-        ["grupos","Grupos"],
-        ["r32","R32"],
-        ["r16","Octavos"],
-        ["cuartos","Cuartos"],
-        ["finales","Semis / Final"]
+        ["calendario","Calendario"],
+        ["tabla","Tabla de grupos"]
       ].map(([key,label])=>(
         <button
           key={key}
-          onClick={()=>setMatchFilter(key)}
+          onClick={()=>setMatchView(key)}
           className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
-            matchFilter===key
+            matchView===key
               ? "bg-white text-stone-900 shadow-sm ring-1 ring-stone-200/70"
               : "text-stone-400 hover:text-stone-600"
           }`}
@@ -1985,50 +1963,83 @@ const autoSuggestPrizes=(places)=>{
         </button>
       ))}
     </div>
-
-    <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
-      {sortMatchesChronologically(
-        matches.filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter)
-      ).map((m,idx)=>(
-          <div key={`${m.date}-${m.num || idx}`} className="px-4 py-3 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-1">
-                <span>{m.round || "—"}</span>
-                {m.group && <span>{m.group}</span>}
-                {m.num && <span>Partido {m.num}</span>}
+    {matchView==="calendario" && (
+      <>
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {[
+            ["todos","Todos"],
+            ["grupos","Grupos"],
+            ["r32","R32"],
+            ["r16","Octavos"],
+            ["cuartos","Cuartos"],
+            ["finales","Semis / Final"]
+          ].map(([key,label])=>(
+            <button
+              key={key}
+              onClick={()=>setMatchFilter(key)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap ${
+                matchFilter===key
+                  ? "bg-white text-stone-900 shadow-sm ring-1 ring-stone-200/70"
+                  : "text-stone-400 hover:text-stone-600"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+    
+        <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden divide-y divide-stone-50">
+          {sortMatchesChronologically(
+            matches.filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter)
+          ).map((m,idx)=>(
+            <div key={`${m.date}-${m.num || idx}`} className="px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[11px] text-stone-400 mb-1">
+                  <span>{m.round || "—"}</span>
+                  {m.group && <span>{m.group}</span>}
+                  {m.num && <span>Partido {m.num}</span>}
+                </div>
+    
+                <div className="text-sm font-medium text-stone-800">
+                  {displayTeam(m.team1)} <span className="text-stone-400 mx-1">{matchScore(m)}</span> {displayTeam(m.team2)}
+                </div>
+    
+                <div className="text-[11px] text-stone-400 mt-1">
+                  {m.ground || "Sede por confirmar"}
+                </div>
               </div>
-
-              <div className="text-sm font-medium text-stone-800">
-                {displayTeam(m.team1)} <span className="text-stone-400 mx-1">{matchScore(m)}</span> {displayTeam(m.team2)}
-              </div>
-
-              <div className="text-[11px] text-stone-400 mt-1">
-                {m.ground || "Sede por confirmar"}
+    
+              <div className="text-right shrink-0">
+                <div className="text-xs font-medium text-stone-600">{formatCDMXDate(m)}</div>
+                <div className="text-[11px] text-stone-400 mt-0.5">{formatCDMXTime(m)}</div>
               </div>
             </div>
-
-            <div className="text-right shrink-0">
-              <div className="text-xs font-medium text-stone-600">{formatCDMXDate(m)}</div>
-              <div className="text-[11px] text-stone-400 mt-0.5">{formatCDMXTime(m)}</div>
+          ))}
+    
+          {!matchesLoading && matches.filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter).length===0 && (
+            <div className="px-4 py-8 text-center text-sm text-stone-400">
+              No hay partidos para este filtro.
+            </div>
+          )}
+    
+          {matchesLoading && (
+            <div className="px-4 py-8 text-center text-sm text-stone-400">
+              Cargando calendario…
+            </div>
+          )}
+        </div>
+      </>
+    )}
+    
+        {matchView==="tabla" && (
+          <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden">
+            <div className="px-4 py-8 text-center text-sm text-stone-400">
+              Tabla de grupos pendiente.
             </div>
           </div>
-        ))}
-
-      {!matchesLoading && matches.filter((m)=>matchFilter==="todos" || matchBucket(m.round)===matchFilter).length===0 && (
-        <div className="px-4 py-8 text-center text-sm text-stone-400">
-          No hay partidos para este filtro.
-        </div>
-      )}
-
-      {matchesLoading && (
-        <div className="px-4 py-8 text-center text-sm text-stone-400">
-          Cargando calendario…
-        </div>
-      )}
-    </div>
-  </div>
-)}
-        
+        )}
+      </div>
+    )}
         {tab==="premios" && (
           <section className="space-y-4">
             <article className="rounded-2xl bg-white ring-1 ring-stone-200/70 overflow-hidden">

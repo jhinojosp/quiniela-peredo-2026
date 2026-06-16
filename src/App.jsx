@@ -1049,6 +1049,23 @@ useEffect(()=>{
   };
 },[]);
 
+  const refreshMatches=async()=>{
+    setMatchesLoading(true);
+  
+    try {
+      const response = await fetch("/api/openfootball-worldcup");
+      const data = await response.json();
+  
+      if(!response.ok) throw new Error(data.error || "No se pudieron cargar partidos.");
+  
+      setMatches(data?.data?.matches || []);
+    } catch(e) {
+      setError("No se pudieron cargar partidos de OpenFootball: " + (e.message || ""));
+    } finally {
+      setMatchesLoading(false);
+    }
+  };
+
   const persist=useCallback(async(next)=>{
     setSaving(true);
     try{
@@ -1931,10 +1948,19 @@ const autoSuggestPrizes=(places)=>{
           Horarios en hora de Ciudad de México. Fuente: OpenFootball.
         </p>
       </div>
-
-      <span className="text-[11px] text-stone-400">
-        {matchesLoading ? "Cargando…" : `${matches.length} partidos`}
-      </span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={refreshMatches}
+          disabled={matchesLoading}
+          className="px-2.5 py-1 rounded-lg bg-white text-stone-600 text-xs font-medium ring-1 ring-stone-200 hover:bg-stone-50 disabled:opacity-40"
+        >
+          {matchesLoading ? "Actualizando…" : "Actualizar partidos"}
+        </button>
+      
+        <span className="text-[11px] text-stone-400">
+          {matchesLoading ? "Cargando…" : `${matches.length} partidos`}
+        </span>
+      </div>
     </div>
 
     <div className="flex gap-1.5 overflow-x-auto pb-1">

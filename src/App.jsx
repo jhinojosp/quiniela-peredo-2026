@@ -2005,6 +2005,8 @@ const autoSuggestPrizes=(places)=>{
         
                       <tbody>
                         {[
+                          ["Victoria en grupos","+3","+4","+5","+7","+8","+10"],
+                          ["Empate en grupos","+1","+1","+2","+2","+3","+3"],
                           ["Ronda de 32","+4","+5","+7"],
                           ["Octavos","+8","+10","+14"],
                           ["Cuartos","+12","+15","+21"],
@@ -2025,7 +2027,7 @@ const autoSuggestPrizes=(places)=>{
                   </div>
         
                   <p className="text-stone-400 text-xs mt-2">
-                    Los puntos son acumulativos y se ajustan según el bombo del equipo. Bombo 1 vale 1.00x, Bombo 2 vale 1.25x y Bombo 3 vale 1.75x. No hay puntos por victorias, goles ni resultados de grupos. El total de cada persona es la suma de los puntos ajustados de sus tres equipos.
+                    Los equipos suman puntos en fase de grupos usando el sistema FIFA: 3 puntos por victoria, 1 por empate y 0 por derrota. Además, suman puntos acumulativos por avance de ronda. Los puntos totales de cada equipo se ajustan según el bombo dinámico que le corresponde. No hay puntos por goles ni diferencia de goles.
                   </p>
                 </div>
         

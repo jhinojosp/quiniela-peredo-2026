@@ -2031,13 +2031,70 @@ const autoSuggestPrizes=(places)=>{
       </>
     )}
     
-        {matchView==="tabla" && (
-          <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden">
-            <div className="px-4 py-8 text-center text-sm text-stone-400">
-              Tabla de grupos pendiente.
-            </div>
+      {matchView==="tabla" && (
+        <div className="bg-white rounded-xl ring-1 ring-stone-200/70 overflow-hidden">
+          <div className="px-4 py-3 border-b border-stone-100">
+            <h2 className="text-sm font-semibold">Tabla de grupos</h2>
+            <p className="text-[11px] text-stone-400 mt-0.5">
+              Calculada automáticamente con marcadores de OpenFootball.
+            </p>
           </div>
-        )}
+      
+          {groupTables.length===0 ? (
+            <div className="px-4 py-8 text-center text-sm text-stone-400">
+              No se encontraron grupos en los datos de OpenFootball.
+            </div>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {groupTables.map(({group, rows})=>(
+                <div key={group} className="p-3">
+                  <h3 className="text-xs font-semibold text-stone-500 mb-2">{group}</h3>
+      
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-stone-400 border-b border-stone-100">
+                          <th className="text-left font-medium px-2 py-1.5">Equipo</th>
+                          <th className="text-center font-medium px-1 py-1.5">PJ</th>
+                          <th className="text-center font-medium px-1 py-1.5">G</th>
+                          <th className="text-center font-medium px-1 py-1.5">E</th>
+                          <th className="text-center font-medium px-1 py-1.5">P</th>
+                          <th className="text-center font-medium px-1 py-1.5">GF</th>
+                          <th className="text-center font-medium px-1 py-1.5">GC</th>
+                          <th className="text-center font-medium px-1 py-1.5">DG</th>
+                          <th className="text-center font-medium px-1 py-1.5">Pts</th>
+                        </tr>
+                      </thead>
+      
+                      <tbody>
+                        {rows.map((row,idx)=>(
+                          <tr key={row.team} className={idx < 2 ? "bg-emerald-50/40" : ""}>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className="font-medium text-stone-700">{teamLabel(row.team)}</span>
+                            </td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.played}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.wins}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.draws}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.losses}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.goalsFor}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">{row.goalsAgainst}</td>
+                            <td className="text-center px-1 py-1.5 tabular-nums">
+                              {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
+                            </td>
+                            <td className="text-center px-1 py-1.5 tabular-nums font-semibold text-stone-900">
+                              {row.points}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       </div>
     )}
         {tab==="premios" && (
